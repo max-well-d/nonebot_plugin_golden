@@ -18,7 +18,7 @@ from typing import List
 __zx_plugin_name__ = "金碟模拟器"
 
 __plugin_usage__ = Config.__plugin_usage__
-
+scheduler = require("nonebot_plugin_apscheduler").scheduler
 
 #battle = on_command("幻卡对决", aliases={"比赛", "幻卡比赛"}, permission=GROUP, priority=5, block=True)
 cactpot = on_command("仙人彩", aliases={"仙人彩抽奖", "抽奖"}, permission=GROUP, priority=5, block=True)
@@ -34,11 +34,11 @@ my_gold = on_command("我的金碟币", aliases={"金碟币"}, permission=GROUP,
 open_cards = on_command("开包", aliases={"开幻卡","开幻卡包"}, permission=GROUP, priority=5, block=True)
 record = on_command("生涯数据", aliases={"我的数据","我的记录"}, permission=GROUP, priority=5, block=True)
 reload_data = on_command("_reload_data", permission=SUPERUSER, priority = 5,block=True)
-scheduler = require("nonebot_plugin_apscheduler").scheduler
+beg_plz = on_command("低保", aliases={"领低保"},permission=GROUP, priority = 5,block=True) 
 sign = on_command("仙人微彩", aliases={"金碟签到", "微彩"}, permission=GROUP, priority=5, block=True)
 vni50 = on_command("转账", aliases={"v你", "转账给"}, permission=GROUP, priority=5, block=True)
 golden_rank = on_command("排行榜",
-    aliases={"金碟币排行", "仙人彩排行", "战力排行","幻卡战力排行", "赚币排行", "花币排行"},
+    aliases={"金碟币排行", "仙人彩排行", "战力排行","幻卡战力排行", "赚币排行", "花币排行","签到排行"},
     permission=GROUP,
     priority=5,
     block=True,)
@@ -183,9 +183,20 @@ async def _(event: GroupMessageEvent):
     pack = golden_manager.get_user_data(event)["pack_opend"]
     back_text = f'\n铜包{pack[1]}包\n银包{pack[2]}包\n金包{pack[3]}包\n白金包{pack[4]}包\n'
     if card[5] > 0:
-        back_text += f'开出：\n☆：{card[0]}\n☆☆：{card[1]}\n☆☆☆：{card[2]}\n☆☆☆☆：{card[3]}\n☆☆☆☆☆：{card[4]}\n隐藏究极卡！★：{card[5]}'
+        back_text += (f'开出：\n'
+                    + f'☆：{card[0]}\n'
+                    + f'☆☆：{card[1]}\n'
+                    + f'☆☆☆：{card[2]}\n'
+                    + f'☆☆☆☆：{card[3]}\n'
+                    + f'☆☆☆☆☆：{card[4]}\n'
+                    + f'隐藏究极卡！★：{card[5]}')
     else:
-        back_text += f'开出：\n☆：{card[0]}\n☆☆：{card[1]}\n☆☆☆：{card[2]}\n☆☆☆☆：{card[3]}\n☆☆☆☆☆：{card[4]}'
+        back_text += (f'开出：\n'
+                    + f'☆：{card[0]}\n'
+                    + f'☆☆：{card[1]}\n'
+                    + f'☆☆☆：{card[2]}\n'
+                    + f'☆☆☆☆：{card[3]}\n'
+                    + f'☆☆☆☆☆：{card[4]}')
     await card_rate.send(back_text, at_sender=True)
 
 
@@ -214,14 +225,14 @@ async def _(event: GroupMessageEvent):
     ctp_rec = user["cactpot_rec"]
     await cactpot_rate.send(
         f'\n仙人彩记录:\n'
-        f'      0  ：  {ctp_rec[0]}\n'
-        f'    166  ：  {ctp_rec[1]}\n'
-        f'    888  ：  {ctp_rec[2]}\n'
-        f'   1666  ：  {ctp_rec[3]}\n'
-        f'   2888  ：  {ctp_rec[4]}\n'
-        f'   6666  ：  {ctp_rec[5]}\n'
-        f'  66666  ：  {ctp_rec[6]}\n'
-        f'3000000  ：  {ctp_rec[7]}',
+        f'0金碟币            ：{ctp_rec[0]}\n'
+        f'166金碟币        ：{ctp_rec[1]}\n'
+        f'888金碟币        ：{ctp_rec[2]}\n'
+        f'1666金碟币      ：{ctp_rec[3]}\n'
+        f'2888金碟币      ：{ctp_rec[4]}\n'
+        f'6666金碟币      ：{ctp_rec[5]}\n'
+        f'66666金碟币    ：{ctp_rec[6]}\n'
+        f'3000000金碟币：{ctp_rec[7]}',
         at_sender=True,
     )
 
@@ -267,6 +278,11 @@ async def _(event: GroupMessageEvent, state: T_State = State(), arg: Message = C
     else:
         msg = golden_manager._change_gold(event, raw_cmd, at_id)
     await vni50.send(msg, at_sender= True)
+
+@beg_plz.handle()
+async def _(event: GroupMessageEvent):
+    msg = golden_manager.beg(event)
+    await beg_plz.send(msg, at_sender=True)
 
 # 重置每日签到
 @scheduler.scheduled_job(

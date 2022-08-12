@@ -24,10 +24,11 @@ cards_power = godden_config.cards_power
 cat_gold = godden_config.cat_gold
 cat_text = godden_config.cat_text
 golden_path = godden_config.golden_path
+max_beg_times = godden_config.max_beg_times
 pack_name = godden_config.pack_name
 pack_type = godden_config.pack_type
 sign_gold = godden_config.sign_gold
-
+user_data_type = godden_config.user_data_type
 
 async def rank(player_data: dict, group_id: int, type_: str) -> str:
     """
@@ -56,9 +57,12 @@ async def rank(player_data: dict, group_id: int, type_: str) -> str:
     elif type_ == "make_gold":
         rank_name = "\t赢取的金碟币排行榜\n"
         all_user_data = [player_data[group_id][x]["make_gold"] for x in all_user]
-    else:
+    elif type_ == "lose_gold":
         rank_name = "\t花掉的金碟币排行榜\n"
         all_user_data = [player_data[group_id][x]["lose_gold"] for x in all_user]
+    else:
+        rank_name = "\t签到天数排行榜\n"
+        all_user_data = [player_data[group_id][x]["sign_days"] for x in all_user]
     rst = ""
     if all_user:
         for _ in range(len(all_user) if len(all_user) < 10 else 10):
@@ -86,6 +90,20 @@ class GoldenManager:
         if file.exists():
             with open(file, "r", encoding="utf8") as f:
                 self._player_data = json.load(f)
+        #检查数据项
+        data_change = 0
+        for key_name in user_data_type.keys():
+            for group_id in self._player_data.keys():
+                for user_id in self._player_data[group_id].keys():
+                    if not key_name in self._player_data[str(group_id)][str(user_id)]:
+                        data_change += 1
+                        self._player_data[str(group_id)][str(user_id)][key_name] = user_data_type[key_name]
+                        #logger.info(f'{group_id}群:QQ{user_id}缺失key:{key_name},增加默认值{user_data_type[key_name]}')
+        if data_change > 0:
+            self.save()
+            logger.info(f'添加{data_change}条缺失数据')
+
+
 
     def sign(self, event: GroupMessageEvent) -> Tuple[str, int]:
         """
@@ -94,7 +112,7 @@ class GoldenManager:
         """
         self._init_player_data(event)
         if self._player_data[str(event.group_id)][str(event.user_id)]["is_sign"]:
-            return "你已经刮过仙人微彩了！\n", -1
+            return "你已经刮过仙人微彩了！", -1
         backtext = "\n"
         gold = 0
         for ele in range(3):
@@ -156,22 +174,22 @@ class GoldenManager:
                 backtext += random.choice(text) + f"获得了 {gold_num} 金碟币\n"
             elif gold_num != 0 and times <= 100:
                 backtext += random.choice(text) + f"获得了 {gold_num} 金碟币\n"
-            gold+=gold_num-10
+            gold+=gold_num
         if times > 100 and use_all:
             backtext +=(
-                f'0　　　　　：　{gold_tab[0]}\n'+
-                f'166　　　　：　{gold_tab[1]}\n'+
-                f'888　　　　：　{gold_tab[2]}\n'+
-                f'1666　 　　：　{gold_tab[3]}\n'+
-                f'2888　　 　：　{gold_tab[4]}\n'+
-                f'6666　　 　：　{gold_tab[5]}\n'+
-                f'66666　  　：　{gold_tab[6]}\n'+
-                f'3000000  　：　{gold_tab[7]}\n'
+                f'0金碟币            ：{gold_tab[0]}\n'+
+                f'166金碟币        ：{gold_tab[1]}\n'+
+                f'888金碟币        ：{gold_tab[2]}\n'+
+                f'1666金碟币      ：{gold_tab[3]}\n'+
+                f'2888金碟币      ：{gold_tab[4]}\n'+
+                f'6666金碟币      ：{gold_tab[5]}\n'+
+                f'66666金碟币    ：{gold_tab[6]}\n'+
+                f'3000000金碟币：{gold_tab[7]}\n'
             )
         elif times > 10:
-            backtext += f"一共没中奖{gold_tab[0]}次，安慰你一下\n"
+            backtext += f"一共{gold_tab[0]}次没中奖，安慰你一下\n"
         backtext += f'消耗了{times*10}金碟币'
-        self._player_data[str(event.group_id)][str(event.user_id)]["gold"] += gold
+        self._player_data[str(event.group_id)][str(event.user_id)]["gold"] += gold - times*10
         self._player_data[str(event.group_id)][str(event.user_id)]["make_gold"] += gold
         self._player_data[str(event.group_id)][str(event.user_id)]["lose_gold"] += times*10
         self.save()
@@ -219,22 +237,22 @@ class GoldenManager:
             gain_cards = open_pack_type + ele
             if gain_cards >= 8:
                 cards_open[5] += 1
-                power+=cards_power[5]
-            elif gain_cards >=6.5:
+                power += cards_power[5]
+            elif gain_cards >= 6.5:
                 cards_open[4] += 1
-                power+=cards_power[4]
-            elif gain_cards >=4:
+                power += cards_power[4]
+            elif gain_cards >= 4:
                 cards_open[3] += 1
-                power+=cards_power[3]
-            elif gain_cards >=3:
+                power += cards_power[3]
+            elif gain_cards >= 3:
                 cards_open[2] += 1
-                power+=cards_power[2]
-            elif gain_cards >=1:
+                power += cards_power[2]
+            elif gain_cards >= 1:
                 cards_open[1] += 1
-                power+=cards_power[1]
+                power += cards_power[1]
             else:
                 cards_open[0] += 1
-                power+=cards_power[0]
+                power += cards_power[0]
         for gain in range(6):
             self._player_data[str(event.group_id)][str(event.user_id)]["cards_opend"][gain] += cards_open[gain]
         self._player_data[str(event.group_id)][str(event.user_id)]["pack_store"][open_pack_type] -= nums
@@ -265,6 +283,8 @@ class GoldenManager:
             return await rank(self._player_data, group_id, "make_gold")
         if msg == "花币排行":
             return await rank(self._player_data, group_id, "lose_gold")
+        if msg == "签到排行":
+            return await rank(self._player_data, group_id, "sign_days")
 
     def _change_gold(self, event: GroupMessageEvent,raw_cmd: str, id_give: list[int], nums: int=50):
         self._init_player_data(event)
@@ -310,8 +330,24 @@ class GoldenManager:
         """
         with open(self.file, "w", encoding="utf8") as f:
             json.dump(self._player_data, f, ensure_ascii=False, indent=4)
+        logger.info(f"--数据已保存--")
 
-
+    def beg(self,event: GroupMessageEvent):
+        self._init_player_data(event)
+        beg_times = self._player_data[str(event.group_id)][str(event.user_id)]["beg_times"]
+        gold = self._player_data[str(event.group_id)][str(event.user_id)]["gold"]
+        if beg_times >= max_beg_times:
+            return f"你已经领过{max_beg_times}次低保了，明天再来吧！"
+        if gold<500:
+            self._player_data[str(event.group_id)][str(event.user_id)]["make_gold"] += 500-gold
+            self._player_data[str(event.group_id)][str(event.user_id)]["gold"] = 500
+            self._player_data[str(event.group_id)][str(event.user_id)]["beg_times"] += 1
+            self.save()
+            return f"低保领取成功，省着花吧！"
+        elif gold<100000:
+            return f"你还有{gold}金碟币，领什么低保"
+        else:
+            return f"存款{gold}的狗大户，来骗低保是么？"
 
     def _init_player_data(self, event: GroupMessageEvent):
         """
@@ -324,23 +360,13 @@ class GoldenManager:
         if group_id not in self._player_data.keys():
             self._player_data[group_id] = {}
         if user_id not in self._player_data[group_id].keys():
-            self._player_data[group_id][user_id] = {
-                "user_id": user_id,
-                "group_id": group_id,
-                "nickname": nickname,
-                "gold": 0,
-                "sign_days": 0,
-                "make_gold": 0,
-                "lose_gold": 0,
-                "cactpot_rec":[0,0,0,0,0,0,0,0],
-                "win_count": 0,
-                "lose_count": 0,
-                "cards_opend": [0,0,0,0,0,0],
-                "pack_store": [0,0,0,0,0],
-                "pack_opend": [0,0,0,0,0],
-                "cards_power": 0,
-                "is_sign": False
-            }
+            self._player_data[group_id][user_id] = user_data_type
+            self._player_data[group_id][user_id]["user_id"] = user_id
+            self._player_data[group_id][user_id]["group_id"] = group_id
+            self._player_data[group_id][user_id]["nickname"] = nickname
+    
+
+
 
     def _end_data_handle(
         self,
@@ -385,6 +411,7 @@ class GoldenManager:
         for group in self._player_data.keys():
             for user_id in self._player_data[group].keys():
                 self._player_data[group][user_id]["is_sign"] = False
+                self._player_data[group][user_id]["beg_times"] = 0
         self.save()
 
 golden_manager = GoldenManager()
