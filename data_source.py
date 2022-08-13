@@ -1,16 +1,15 @@
-from nonebot.adapters.onebot.v11 import GroupMessageEvent, Message, MessageSegment, Bot
-from typing import Optional, Tuple, Union, List, Dict
 from datetime import datetime
+from nonebot.adapters.onebot.v11 import GroupMessageEvent, Message, MessageSegment, Bot
 from nonebot.log import logger
 from pathlib import Path
-import numpy as np
-import nonebot
+from typing import Optional, Tuple, Union, List, Dict
 import asyncio
+import nonebot
+import numpy as np
+import os
 import random
 import time
-import os
 from .config import Config
-
 try:
     import ujson as json
 except ModuleNotFoundError:
@@ -149,42 +148,48 @@ class GoldenManager:
         gold_tab = [0,0,0,0,0,0,0,0]
         num_tmps = np.random.randn(times)
         for num_tmp in num_tmps :
+            num_tmp = abs(num_tmp)
             if num_tmp>5:
                 gold_tmp = 7
-            elif num_tmp>4:
+
+            elif num_tmp>4.35:
                 gold_tmp = 6
-            elif num_tmp>3.6:
+
+            elif num_tmp>3.75:
                 gold_tmp = 5
-            elif num_tmp>3.35:
+
+            elif num_tmp>3.55:
                 gold_tmp = 4
-            elif num_tmp>3.1:
+
+            elif num_tmp>3.05:
                 gold_tmp = 3
-            elif num_tmp>2.75:
+
+            elif num_tmp>2.45:
                 gold_tmp = 2
-            elif num_tmp>2.4:
+
+            elif num_tmp>1.5:
                 gold_tmp = 1
             else:
-                gold_tmp= 0
+                gold_tmp = 0
             text = cat_text[gold_tmp]
             self._player_data[str(event.group_id)][str(event.user_id)]["cactpot_rec"][gold_tmp]+=1
             gold_num = cat_gold[gold_tmp]
 
             gold_tab[gold_tmp]+=1
-            if times <= 10:
+            if times <= 10 or gold_num != 0 and times <= 100:
                 backtext += random.choice(text) + f"获得了 {gold_num} 金碟币\n"
-            elif gold_num != 0 and times <= 100:
-                backtext += random.choice(text) + f"获得了 {gold_num} 金碟币\n"
+
             gold+=gold_num
         if times > 100 and use_all:
             backtext +=(
-                f'0金碟币            ：{gold_tab[0]}\n'+
-                f'166金碟币        ：{gold_tab[1]}\n'+
-                f'888金碟币        ：{gold_tab[2]}\n'+
-                f'1666金碟币      ：{gold_tab[3]}\n'+
-                f'2888金碟币      ：{gold_tab[4]}\n'+
-                f'6666金碟币      ：{gold_tab[5]}\n'+
-                f'66666金碟币    ：{gold_tab[6]}\n'+
-                f'3000000金碟币：{gold_tab[7]}\n'
+                f'{cat_gold[0]}金碟币            ：{gold_tab[0]}\n'+
+                f'{cat_gold[1]}金碟币          ：{gold_tab[1]}\n'+
+                f'{cat_gold[2]}金碟币        ：{gold_tab[2]}\n'+
+                f'{cat_gold[3]}金碟币        ：{gold_tab[3]}\n'+
+                f'{cat_gold[4]}金碟币      ：{gold_tab[4]}\n'+
+                f'{cat_gold[5]}金碟币      ：{gold_tab[5]}\n'+
+                f'{cat_gold[6]}金碟币    ：{gold_tab[6]}\n'+
+                f'{cat_gold[7]}金碟币：{gold_tab[7]}\n'
             )
         elif times > 10:
             backtext += f"一共{gold_tab[0]}次没中奖，安慰你一下\n"
@@ -195,7 +200,7 @@ class GoldenManager:
         self.save()
         return (
             backtext,
-            gold
+            gold - times*10
         )
 
     def get_cards(self, event: GroupMessageEvent, buy_pack_type: int, nums: int) -> Tuple[str,int]:
@@ -339,11 +344,11 @@ class GoldenManager:
         if beg_times >= max_beg_times:
             return f"你已经领过{max_beg_times}次低保了，明天再来吧！"
         if gold<500:
-            self._player_data[str(event.group_id)][str(event.user_id)]["make_gold"] += 500-gold
-            self._player_data[str(event.group_id)][str(event.user_id)]["gold"] = 500
+            self._player_data[str(event.group_id)][str(event.user_id)]["make_gold"] += 500
+            self._player_data[str(event.group_id)][str(event.user_id)]["gold"] = 500 + gold
             self._player_data[str(event.group_id)][str(event.user_id)]["beg_times"] += 1
             self.save()
-            return f"低保领取成功，省着花吧！"
+            return f"低保领取成功，省着花吧，今天还剩{max_beg_times - beg_times - 1}次低保！"
         elif gold<100000:
             return f"你还有{gold}金碟币，领什么低保"
         else:
@@ -357,6 +362,10 @@ class GoldenManager:
         user_id = str(event.user_id)
         group_id = str(event.group_id)
         nickname = event.sender.card if event.sender.card else event.sender.nickname
+        if not self._player_data[str(event.group_id)][str(event.user_id)]["nickname"] == nickname:
+            self._player_data[str(event.group_id)][str(event.user_id)]["nickname"] = nickname
+            logger.info(f"{event.group_id}群:qq{event.user_id}已改名为:{nickname}")
+            self.save()
         if group_id not in self._player_data.keys():
             self._player_data[group_id] = {}
         if user_id not in self._player_data[group_id].keys():

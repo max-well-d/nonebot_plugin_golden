@@ -8,6 +8,7 @@ from nonebot.adapters.onebot.v11 import (
     GroupMessageEvent,
     Message,
     MessageSegment,
+    helpers 
 )
 from nonebot.permission import SUPERUSER
 from nonebot.log import logger
@@ -18,6 +19,7 @@ from typing import List
 __zx_plugin_name__ = "金碟模拟器"
 
 __plugin_usage__ = Config.__plugin_usage__
+cat_gold = Config.__cat_gold__
 scheduler = require("nonebot_plugin_apscheduler").scheduler
 
 #battle = on_command("幻卡对决", aliases={"比赛", "幻卡比赛"}, permission=GROUP, priority=5, block=True)
@@ -115,7 +117,8 @@ async def _(
     await get_cards.send(msg, at_sender=True)
 
 
-#买卡包-------------
+
+#开卡包-------------
 @open_cards.handle()
 async def _(event: GroupMessageEvent, state: T_State = State(),arg: Message = CommandArg()):
     msg = arg.extract_plain_text().strip()
@@ -225,14 +228,14 @@ async def _(event: GroupMessageEvent):
     ctp_rec = user["cactpot_rec"]
     await cactpot_rate.send(
         f'\n仙人彩记录:\n'
-        f'0金碟币            ：{ctp_rec[0]}\n'
-        f'166金碟币        ：{ctp_rec[1]}\n'
-        f'888金碟币        ：{ctp_rec[2]}\n'
-        f'1666金碟币      ：{ctp_rec[3]}\n'
-        f'2888金碟币      ：{ctp_rec[4]}\n'
-        f'6666金碟币      ：{ctp_rec[5]}\n'
-        f'66666金碟币    ：{ctp_rec[6]}\n'
-        f'3000000金碟币：{ctp_rec[7]}',
+        f'{cat_gold[0]}金碟币            ：{ctp_rec[0]}\n'
+        f'{cat_gold[1]}金碟币          ：{ctp_rec[1]}\n'
+        f'{cat_gold[2]}金碟币        ：{ctp_rec[2]}\n'
+        f'{cat_gold[3]}金碟币        ：{ctp_rec[3]}\n'
+        f'{cat_gold[4]}金碟币      ：{ctp_rec[4]}\n'
+        f'{cat_gold[5]}金碟币      ：{ctp_rec[5]}\n'
+        f'{cat_gold[6]}金碟币    ：{ctp_rec[6]}\n'
+        f'{cat_gold[7]}0金碟币：{ctp_rec[7]}',
         at_sender=True,
     )
 
@@ -259,7 +262,7 @@ async def _(event: GroupMessageEvent):
     if gold != -1:
         logger.info(f"USER {event.user_id} | GROUP {event.group_id} 获取 {gold} 金碟币")
 
-@cactpot_all.handle()
+@cactpot_all.handle(parameterless=[helpers.Cooldown(cooldown=10,prompt="正在10秒CD中")])
 async def _(event: GroupMessageEvent):
     msg, gold = golden_manager.cactpot(event, 100000, True)
     await cactpot_all.send(msg, at_sender=True)
