@@ -15,6 +15,7 @@ try:
 except ModuleNotFoundError:
     import json
 
+scheduler = nonebot.require("nonebot_plugin_apscheduler").scheduler
 
 global_config = nonebot.get_driver().config
 godden_config = Config.parse_obj(global_config.dict())
@@ -22,6 +23,7 @@ golden_confg = Config.parse_obj(nonebot.get_driver().config.dict())
 cards_power = godden_config.cards_power
 cat_gold = godden_config.cat_gold
 cat_text = godden_config.cat_text
+goal_gold = godden_config.goal_gold
 golden_path = godden_config.golden_path
 max_beg_times = godden_config.max_beg_times
 pack_name = godden_config.pack_name
@@ -47,7 +49,7 @@ async def rank(player_data: dict, group_id: int, type_: str) -> str:
         for x in range(len(tmp)):
             tmp_sum = 0
             for s in range(1,len(tmp[x])):
-                tmp_sum+=tmp[x][s]*cat_gold[s]
+                tmp_sum += tmp[x][s]*cat_gold[s]
             tmp[x] = tmp_sum
         all_user_data = tmp
     elif type_ == "cards_power":
@@ -73,7 +75,6 @@ async def rank(player_data: dict, group_id: int, type_: str) -> str:
             all_user.remove(_max_id)
         rst = rst[:-1]
     return rank_name + rst
-
 
 class GoldenManager:
     def __init__(self):
@@ -102,7 +103,39 @@ class GoldenManager:
             self.save()
             logger.info(f'添加{data_change}条缺失数据')
 
+    def change_gold_self(self, group_id: str, user_id: str, nums: int):
+        group_id = str(group_id)
+        user_id = str(user_id)
+        loan_in = self._player_data[group_id][user_id]["loan_in"]
+        if nums > 0:
+            if len(loan_in) > 0:
+                del_out_list = []
+                del_in_list = []
+                for loan_out_id in loan_in:
+                    self._player_data[group_id][loan_out_id]["gold"] += int(nums/10)
+                    self._player_data[group_id][loan_out_id]["loan_out"][user_id] -= int(nums/10)
+                    self._player_data[group_id][user_id]["loan_in"][loan_out_id] -= int(nums/10)
+                    if self._player_data[group_id][loan_out_id]["loan_out"][user_id] < 0:
+                        del_out_list.append(loan_out_id)
+                    if self._player_data[group_id][user_id]["loan_in"][loan_out_id] <= 0:
+                        del_in_list.append(loan_out_id)
+                for del_user_id in del_out_list:
+                    del self._player_data[group_id][del_user_id]["loan_out"][user_id]
+                for del_user_id in del_in_list:
+                    del self._player_data[group_id][user_id]["loan_in"][del_user_id]
 
+                self._player_data[group_id][user_id]["gold"] += nums-int(nums/10*len(loan_in))
+                self._player_data[group_id][user_id]["make_gold"] += nums-int(nums/10*len(loan_in))
+            else:
+                self._player_data[group_id][user_id]["gold"] += nums
+                self._player_data[group_id][user_id]["make_gold"] += nums
+            return nums - int(nums/10*len(loan_in))
+        elif nums < 0:
+            self._player_data[group_id][user_id]["gold"] += nums
+            self._player_data[group_id][user_id]["lose_gold"] -= nums
+            return nums
+        else:
+            return 0
 
     def sign(self, event: GroupMessageEvent) -> Tuple[str, int]:
         """
@@ -118,20 +151,19 @@ class GoldenManager:
             gain_num = 0
             num_tmps = random.sample(range(1, 10),3)
             for num_tmp in num_tmps:
-                backtext+=str(num_tmp)+'  '
-                gain_num+=num_tmp
+                backtext += str(num_tmp)+'  '
+                gain_num += num_tmp
             gold += sign_gold[gain_num]
-            backtext+=f',获得{sign_gold[gain_num]}金碟币\n'
+            backtext += f',获得{sign_gold[gain_num]}金碟币\n'
+        left_gold = self.change_gold_self(event.group_id, event.user_id, gold)
         self._player_data[str(event.group_id)][str(event.user_id)]["sign_days"] += 1
-        self._player_data[str(event.group_id)][str(event.user_id)]["gold"] += gold
-        self._player_data[str(event.group_id)][str(event.user_id)]["make_gold"] += gold
         self._player_data[str(event.group_id)][str(event.user_id)]["is_sign"] = True
         self.save()
         return (
-            backtext + f"共获得了 {gold} 金碟币",
-            gold,
-        )
-    def cactpot(self, event: GroupMessageEvent, times: int, use_all: bool) ->Tuple[str,int]:
+            backtext + f"共获得了 {left_gold} 金碟币",
+            left_gold,)
+
+    def cactpot(self, event: GroupMessageEvent, times: int, use_all: bool) -> Tuple[str, int]:
         """
         仙人彩
         """
@@ -141,33 +173,34 @@ class GoldenManager:
         if now_gold - times*10 < 0:
             if not use_all or now_gold < 10:
                 return (f'金碟币不足！',-1)
-            else :
+            else:
                 backtext +=f'！！有位勇士开始梭哈！！\n'
                 times = int(now_gold/10)
         gold = 0
-        gold_tab = [0,0,0,0,0,0,0,0]
+        gold_tab = [0, 0, 0, 0, 0, 0, 0, 0]
         num_tmps = np.random.randn(times)
-        for num_tmp in num_tmps :
-            num_tmp = abs(num_tmp)
-            if num_tmp>5:
+        adjust = (goal_gold-now_gold)/(now_gold*5+goal_gold)/2
+        for num_tmp in num_tmps:
+            num_tmp = abs(num_tmp) + adjust
+            if num_tmp > 5:
                 gold_tmp = 7
 
-            elif num_tmp>4.35:
+            elif num_tmp > 4.3:
                 gold_tmp = 6
 
-            elif num_tmp>3.75:
+            elif num_tmp > 3.7:
                 gold_tmp = 5
 
-            elif num_tmp>3.55:
+            elif num_tmp > 3.5:
                 gold_tmp = 4
 
-            elif num_tmp>3.05:
+            elif num_tmp > 3.:
                 gold_tmp = 3
 
-            elif num_tmp>2.45:
+            elif num_tmp > 2.4:
                 gold_tmp = 2
 
-            elif num_tmp>1.5:
+            elif num_tmp > 1.5:
                 gold_tmp = 1
             else:
                 gold_tmp = 0
@@ -175,7 +208,7 @@ class GoldenManager:
             self._player_data[str(event.group_id)][str(event.user_id)]["cactpot_rec"][gold_tmp]+=1
             gold_num = cat_gold[gold_tmp]
 
-            gold_tab[gold_tmp]+=1
+            gold_tab[gold_tmp] += 1
             if times <= 10 or gold_num != 0 and times <= 100:
                 backtext += random.choice(text) + f"获得了 {gold_num} 金碟币\n"
 
@@ -194,13 +227,12 @@ class GoldenManager:
         elif times > 10:
             backtext += f"一共{gold_tab[0]}次没中奖，安慰你一下\n"
         backtext += f'消耗了{times*10}金碟币'
-        self._player_data[str(event.group_id)][str(event.user_id)]["gold"] += gold - times*10
-        self._player_data[str(event.group_id)][str(event.user_id)]["make_gold"] += gold
-        self._player_data[str(event.group_id)][str(event.user_id)]["lose_gold"] += times*10
+        left_gold = self.change_gold_self(event.group_id, event.user_id, gold)
+        self.change_gold_self(event.group_id, event.user_id, times*-10)
         self.save()
         return (
             backtext,
-            gold - times*10
+            left_gold - times*10
         )
 
     def get_cards(self, event: GroupMessageEvent, buy_pack_type: int, nums: int) -> Tuple[str,int]:
@@ -212,13 +244,11 @@ class GoldenManager:
         allcost = cost * nums
         gold = self._player_data[str(event.group_id)][str(event.user_id)]["gold"]
         if gold < allcost:
-            print (allcost,'------',gold)
+            print(allcost, '------', gold)
             return ("金碟币不足，无法购买",
-            -1,
-            )
+                    -1,)
         else:
-            self._player_data[str(event.group_id)][str(event.user_id)]["gold"] -= allcost
-            self._player_data[str(event.group_id)][str(event.user_id)]["lose_gold"] += allcost
+            self.change_gold_self(event.group_id, event.user_id, allcost*-1)
             self._player_data[str(event.group_id)][str(event.user_id)]["pack_store"][buy_pack_type] += nums
             self.save()
             return (
@@ -235,7 +265,7 @@ class GoldenManager:
             return ("卡包不足！")
         if type_nums < nums:
             nums = type_nums
-        cards_open = [0,0,0,0,0,0]
+        cards_open = [0, 0, 0, 0, 0, 0]
         power = 0
         cardstmps = np.random.randn(nums)
         for ele in cardstmps:
@@ -291,7 +321,7 @@ class GoldenManager:
         if msg == "签到排行":
             return await rank(self._player_data, group_id, "sign_days")
 
-    def _change_gold(self, event: GroupMessageEvent,raw_cmd: str, id_give: list[int], nums: int=50):
+    def _change_gold(self, event: GroupMessageEvent, raw_cmd: str, id_give: list[int], nums: int=50):
         self._init_player_data(event)
         count = len(id_give)
         if raw_cmd == '_change_gold':
@@ -306,13 +336,9 @@ class GoldenManager:
                     return f'余额不足，V不了了'
             else:
                 for uid in id_give:
-                    if event.user_id == uid:
-                        pass
-                    self._player_data[str(event.group_id)][str(uid)]["gold"] += nums
-                    self._player_data[str(event.group_id)][str(uid)]["make_gold"] += nums
-
-                self._player_data[str(event.group_id)][str(event.user_id)]["gold"] -= count*nums
-                self._player_data[str(event.group_id)][str(event.user_id)]["lose_gold"] -= count*nums
+                    if not event.user_id == uid:
+                        self.change_gold_self(event.group_id, uid, nums)
+                self.change_gold_self(event.group_id, event.user_id, count*nums*-1)
                 self.save()
                 return f'已到账，还剩{self._player_data[str(event.group_id)][str(event.user_id)]["gold"]}金碟币'
 
@@ -344,8 +370,7 @@ class GoldenManager:
         if beg_times >= max_beg_times:
             return f"你已经领过{max_beg_times}次低保了，明天再来吧！"
         if gold<500:
-            self._player_data[str(event.group_id)][str(event.user_id)]["make_gold"] += 500
-            self._player_data[str(event.group_id)][str(event.user_id)]["gold"] = 500 + gold
+            self.change_gold_self(event.group_id, event.user_id, 500)
             self._player_data[str(event.group_id)][str(event.user_id)]["beg_times"] += 1
             self.save()
             return f"低保领取成功，省着花吧，今天还剩{max_beg_times - beg_times - 1}次低保！"
@@ -362,10 +387,6 @@ class GoldenManager:
         user_id = str(event.user_id)
         group_id = str(event.group_id)
         nickname = event.sender.card if event.sender.card else event.sender.nickname
-        if not self._player_data[str(event.group_id)][str(event.user_id)]["nickname"] == nickname:
-            self._player_data[str(event.group_id)][str(event.user_id)]["nickname"] = nickname
-            logger.info(f"{event.group_id}群:qq{event.user_id}已改名为:{nickname}")
-            self.save()
         if group_id not in self._player_data.keys():
             self._player_data[group_id] = {}
         if user_id not in self._player_data[group_id].keys():
@@ -373,45 +394,89 @@ class GoldenManager:
             self._player_data[group_id][user_id]["user_id"] = user_id
             self._player_data[group_id][user_id]["group_id"] = group_id
             self._player_data[group_id][user_id]["nickname"] = nickname
-    
+        if not self._player_data[str(event.group_id)][str(event.user_id)]["nickname"] == nickname:
+            self._player_data[str(event.group_id)][str(event.user_id)]["nickname"] = nickname
+            logger.info(f"{event.group_id}群:qq{event.user_id}已改名为:{nickname}")
+            self.save()
 
+#借贷
+    def del_loan_timer(self, group_id, at_id):
+        try:
+            scheduler.remove_job(self._current_player[group_id][at_id]["scheduler_id"])
+            logger.info(f"成功删除定时器")
+        except:
+            logger.info(f"定时删除错误")
+        if at_id in self._current_player[group_id]:
+            del self._current_player[group_id][at_id]
 
+    def loan_in(self, event: GroupMessageEvent, nums: str, at_id: str):
+        if str(event.group_id) in self._current_player:
+            if str(at_id) in self._current_player[str(event.group_id)]:
+                return f"该用户正在被申请贷款！"
+        else:
+            self._current_player[str(event.group_id)] = {}
+        self._current_player[str(event.group_id)] = {
+            str(at_id): {"loan_in": str(event.user_id),
+                         "loan_in_nickname": self._player_data[str(event.group_id)][str(event.user_id)]["nickname"],
+                         "loan_out": str(at_id),
+                         "loan_out_nickname": self._player_data[str(event.group_id)][str(at_id)]["nickname"],
+                         "nums": nums,
+                         "scheduler_id": str(event.group_id)+str(at_id), }
+            }
+        try:
+            scheduler.add_job(func=self.del_loan_timer,
+                            args=(str(event.group_id), str(at_id)),
+                            trigger='interval',
+                            seconds=60,
+                            id=self._current_player[str(event.group_id)][str(at_id)]["scheduler_id"])
+            logger.info(f'{self._current_player[str(event.group_id)][str(at_id)]["scheduler_id"]}任务生成')
+        except:
+            logger.info(f"定时任务生成失败！")
+        msg = (MessageSegment.at(at_id)
+               + MessageSegment.text(f'\n{self._player_data[str(event.group_id)][str(event.user_id)]["nickname"]}'
+                                     f'向您借贷{nums}金碟币，请在60秒内输入“同意贷款”，或“拒绝贷款”，超时将自动帮您拒绝。'))
+        return msg
 
-    def _end_data_handle(
-        self,
-        win_user_id: int,
-        lose_user_id,
-        group_id: int,
-        gold: int,
-    ):
-        """
-        结算数据处理保存
-        :param win_user_id: 胜利玩家id
-        :param lose_user_id: 失败玩家id
-        :param group_id: 群聊
-        :param gold: 赌注金币
-        """
-        win_user_id = str(win_user_id)
-        lose_user_id = str(lose_user_id)
-        group_id = str(group_id)
-        self._player_data[group_id][win_user_id]["gold"] += gold
-        self._player_data[group_id][win_user_id]["make_gold"] += gold
-        self._player_data[group_id][win_user_id]["win_count"] += 1
+    def accept(self, event: GroupMessageEvent):
+        if str(event.user_id) in self._current_player[str(event.group_id)]:
+            loan_in_id = self._current_player[str(event.group_id)][str(event.user_id)]["loan_in"]
+            nums = int(self._current_player[str(event.group_id)][str(event.user_id)]["nums"])
+            self.del_loan_timer(str(event.group_id), str(event.user_id))
 
-        self._player_data[group_id][lose_user_id]["gold"] -= gold
-        self._player_data[group_id][lose_user_id]["lose_gold"] += gold
-        self._player_data[group_id][lose_user_id]["lose_count"] += 1
+            self._player_data[str(event.group_id)][str(event.user_id)]["gold"] -= nums
+            self._player_data[str(event.group_id)][loan_in_id]["gold"] += nums
+            if not loan_in_id in self._player_data[str(event.group_id)][str(event.user_id)]["loan_out"]:
+                self._player_data[str(event.group_id)][str(event.user_id)]["loan_out"][loan_in_id] = nums
+            else:
+                self._player_data[str(event.group_id)][str(event.user_id)]["loan_out"][loan_in_id] += nums
+            if not str(event.user_id) in self._player_data[str(event.group_id)][loan_in_id]["loan_in"]:
+                self._player_data[str(event.group_id)][loan_in_id]["loan_in"][str(event.user_id)] = nums
+            else:
+                self._player_data[str(event.group_id)][loan_in_id]["loan_in"][str(event.user_id)] += nums
+            self.save()
+            nickname = self._player_data[str(event.group_id)][loan_in_id]["nickname"]
+            return f"您已成功向{nickname}借贷{nums}金碟币"
+        else:
+            return f'您没有被申请借贷！'
 
-        self.save()
+    def refuse(self, event: GroupMessageEvent):
+        if str(event.user_id) in self._current_player[str(event.group_id)]:
+            self.del_loan_timer(str(event.group_id), str(event.user_id))
+        return f'已成功拒绝！'
 
-    def get_user_data(self, event: GroupMessageEvent) -> Dict[str, Union[str, int]]:
+    def get_user_data(self, event: GroupMessageEvent, search_Uid: str="") -> Dict[str, Union[str, int]]:
         """
         获取用户数据
         :param event:
         :return:
         """
         self._init_player_data(event)
-        return self._player_data[str(event.group_id)][str(event.user_id)]
+        if search_Uid == "":
+            return self._player_data[str(event.group_id)][str(event.user_id)]
+        elif search_Uid in self._player_data[str(event.group_id)]:
+            return self._player_data[str(event.group_id)][search_Uid]
+        else:
+            return "Null"
 
     def reset_gold(self):
         """
