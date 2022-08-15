@@ -179,7 +179,7 @@ class GoldenManager:
         gold = 0
         gold_tab = [0, 0, 0, 0, 0, 0, 0, 0]
         num_tmps = np.random.randn(times)
-        adjust = (goal_gold-now_gold)/(now_gold*5+goal_gold)/2
+        adjust = (goal_gold-now_gold)/(now_gold*5+goal_gold)/5
         for num_tmp in num_tmps:
             num_tmp = abs(num_tmp) + adjust
             if num_tmp > 5:
@@ -209,10 +209,11 @@ class GoldenManager:
             gold_num = cat_gold[gold_tmp]
 
             gold_tab[gold_tmp] += 1
-            if times <= 10 or gold_num != 0 and times <= 100:
+            if times <= 10 or gold_num > 10 and times <= 100:
                 backtext += random.choice(text) + f"获得了 {gold_num} 金碟币\n"
-
             gold+=gold_num
+        if times > 10 and times <= 100:
+            backtext += f'获得了  {cat_gold[1]}  金碟币  {gold_tab[1]}  次\n'
         if times > 100 and use_all:
             backtext +=(
                 f'{cat_gold[0]}金碟币            ：{gold_tab[0]}\n'+

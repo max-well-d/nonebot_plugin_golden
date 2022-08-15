@@ -355,11 +355,12 @@ async def _(event: GroupMessageEvent):
             msg += f':{loan_in[uid]}\n'
     msg += f"借贷：\n"
     if not loan_out:
-        msg += f"无\n"
+        msg += f"无"
     else:
         for uid in loan_out.keys():
             msg += golden_manager.get_user_data(event, uid)["nickname"]
             msg += f'：{loan_out[uid]}\n'
+        msg += f'将抽取所有赚到的金碟币的10%来偿还债务'
     await my_loan.send(msg, at_sender=True)
 
 @beg_plz.handle()
