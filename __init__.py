@@ -238,7 +238,7 @@ async def _(event: GroupMessageEvent):
         f'{cat_gold[4]}金碟币      ：{ctp_rec[4]}\n'
         f'{cat_gold[5]}金碟币      ：{ctp_rec[5]}\n'
         f'{cat_gold[6]}金碟币    ：{ctp_rec[6]}\n'
-        f'{cat_gold[7]}0金碟币：{ctp_rec[7]}',
+        f'{cat_gold[7]}金碟币：{ctp_rec[7]}',
         at_sender=True,
     )
 
@@ -305,6 +305,8 @@ async def _(bot: Bot, event: GroupMessageEvent, state: T_State = State(), arg: M
         state["loan_user_gold"] = loan_user["gold"]
     state["at"] = at_id[0]
     if nums and is_number(nums) and int(nums) > 0:
+        if int(nums) > int(state["loan_user_gold"]):
+            await loan_in.finish("你借太多啦！")
         if state["at"]:
             msg = golden_manager.loan_in(event, nums, state["at"])
             await loan_in.finish(msg)

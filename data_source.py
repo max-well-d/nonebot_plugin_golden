@@ -179,7 +179,7 @@ class GoldenManager:
         gold = 0
         gold_tab = [0, 0, 0, 0, 0, 0, 0, 0]
         num_tmps = np.random.randn(times)
-        adjust = (goal_gold-now_gold)/(now_gold*5+goal_gold)/5
+        adjust = (goal_gold-now_gold)/(now_gold*10+goal_gold)/2
         for num_tmp in num_tmps:
             num_tmp = abs(num_tmp) + adjust
             if num_tmp > 5:
@@ -194,7 +194,7 @@ class GoldenManager:
             elif num_tmp > 3.5:
                 gold_tmp = 4
 
-            elif num_tmp > 3.:
+            elif num_tmp > 3:
                 gold_tmp = 3
 
             elif num_tmp > 2.4:
