@@ -50,7 +50,7 @@ game_help = on_command("金碟帮助", aliases={"/help", "help"}, permission=GRO
 card_rate = on_command("开卡记录", aliases={"开包记录","幻卡记录"}, permission=GROUP, priority=5, block=True)
 my_gold = on_command("我的金碟币", aliases={"金碟币"}, permission=GROUP, priority=5, block=True)
 record = on_command("生涯数据", aliases={"我的数据","我的记录"}, permission=GROUP, priority=5, block=True)
-golden_rank = on_command("排行榜",aliases={"金碟币排行", "仙人彩排行", "战力排行","幻卡战力排行", "赚币排行", "花币排行","签到排行"},permission=GROUP,priority=5,block=True,)
+golden_rank = on_command("排行榜",aliases={"金碟币排行", "仙人彩排行", "战力排行","幻卡战力排行", "赚币排行", "花币排行","签到排行"},permission=GROUP,priority=5,block=True)
 
 @reload_data.handle()
 async def _():
@@ -69,7 +69,7 @@ async def _(event: GroupMessageEvent):
         logger.info(f"USER {event.user_id} | GROUP {event.group_id} 获取 {gold} 金碟币")
 
 
-#买卡包-------------
+#%%买卡包-------------
 @get_cards.handle()
 async def _(event: GroupMessageEvent, state: T_State = State(),arg: Message = CommandArg()):
     msg = arg.extract_plain_text().strip()
@@ -123,7 +123,7 @@ async def _(
 
 
 
-#开卡包-------------
+#%%开卡包-------------
 @open_cards.handle()
 async def _(event: GroupMessageEvent, state: T_State = State(),arg: Message = CommandArg()):
     msg = arg.extract_plain_text().strip()
@@ -176,7 +176,7 @@ async def _(
     msg = golden_manager.open_cards(event,int(state["open_card_type"]), int(state["open_num"]))
     await open_cards.send(msg, at_sender=True)
 
-
+#%%统计杂项
 @my_gold.handle()
 async def _(event: GroupMessageEvent):
     gold = golden_manager.get_user_data(event)["gold"]
@@ -242,7 +242,30 @@ async def _(event: GroupMessageEvent):
         at_sender=True,
     )
 
+@my_loan.handle()
+async def _(event: GroupMessageEvent):
+    data = golden_manager.get_user_data(event)
+    loan_in = data["loan_in"]
+    print (type(loan_in))
+    loan_out = data["loan_out"]
+    msg = f"\n债务：\n"
+    if not loan_out:
+        msg += f"无\n"
+    else:
+        for uid in loan_out.keys():
+            msg += golden_manager.get_user_data(event, uid)["nickname"]
+            msg += f'：{loan_out[uid]}\n'
+    msg += f"借贷：\n"
+    if not loan_in:
+        msg += f"无\n"
+    else:
+        for uid in loan_in.keys():
+            msg += golden_manager.get_user_data(event, uid)["nickname"]
+            msg += f':{loan_in[uid]}\n'
+        msg += f'赚到的金碟币抽10%来还债'
+    await my_loan.send(msg, at_sender=True)
 
+#%%仙人彩
 @cactpot.handle()
 async def _(event: GroupMessageEvent):
     msg, gold = golden_manager.cactpot(event, 1, False)
@@ -272,7 +295,7 @@ async def _(event: GroupMessageEvent):
     if gold != -1:
         logger.info(f"USER {event.user_id} | GROUP {event.group_id} 获取 {gold} 金碟币")
 
-
+#%%转账
 @vni50.handle()
 @change_gold.handle()
 async def _(event: GroupMessageEvent, state: T_State = State(), arg: Message = CommandArg()):
@@ -287,6 +310,7 @@ async def _(event: GroupMessageEvent, state: T_State = State(), arg: Message = C
         msg = golden_manager._change_gold(event, raw_cmd, at_id)
     await vni50.send(msg, at_sender=True)
 
+#%%贷款
 @loan_in.handle()
 async def _(bot: Bot, event: GroupMessageEvent, state: T_State = State(), arg: Message = CommandArg()):
     debate = golden_manager.get_user_data(event)["loan_in"]
@@ -342,29 +366,7 @@ async def _(event: GroupMessageEvent):
     msg = golden_manager.refuse(event)
     await refuse.send(msg, at_sender=True)
 
-@my_loan.handle()
-async def _(event: GroupMessageEvent):
-    data = golden_manager.get_user_data(event)
-    loan_in = data["loan_in"]
-    print (type(loan_in))
-    loan_out = data["loan_out"]
-    msg = f"\n债务：\n"
-    if not loan_in:
-        msg += f"无\n"
-    else:
-        for uid in loan_in.keys():
-            msg += golden_manager.get_user_data(event, uid)["nickname"]
-            msg += f':{loan_in[uid]}\n'
-    msg += f"借贷：\n"
-    if not loan_out:
-        msg += f"无"
-    else:
-        for uid in loan_out.keys():
-            msg += golden_manager.get_user_data(event, uid)["nickname"]
-            msg += f'：{loan_out[uid]}\n'
-        msg += f'将抽取所有赚到的金碟币的10%来偿还债务'
-    await my_loan.send(msg, at_sender=True)
-
+#低保
 @beg_plz.handle()
 async def _(event: GroupMessageEvent):
     msg = golden_manager.beg(event)

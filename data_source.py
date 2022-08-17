@@ -1,14 +1,11 @@
-from datetime import datetime
-from nonebot.adapters.onebot.v11 import GroupMessageEvent, Message, MessageSegment, Bot
+from nonebot.adapters.onebot.v11 import GroupMessageEvent, MessageSegment
 from nonebot.log import logger
 from pathlib import Path
-from typing import Optional, Tuple, Union, List, Dict
-import asyncio
+from typing import Tuple, Union, Dict
 import nonebot
 import numpy as np
 import os
 import random
-import time
 from .config import Config
 try:
     import ujson as json
@@ -98,7 +95,6 @@ class GoldenManager:
                     if not key_name in self._player_data[str(group_id)][str(user_id)]:
                         data_change += 1
                         self._player_data[str(group_id)][str(user_id)][key_name] = user_data_type[key_name]
-                        #logger.info(f'{group_id}群:QQ{user_id}缺失key:{key_name},增加默认值{user_data_type[key_name]}')
         if data_change > 0:
             self.save()
             logger.info(f'添加{data_change}条缺失数据')
@@ -178,30 +174,24 @@ class GoldenManager:
                 times = int(now_gold/10)
         gold = 0
         gold_tab = [0, 0, 0, 0, 0, 0, 0, 0]
-        num_tmps = np.random.randn(times)
-        adjust = (goal_gold-now_gold)/(now_gold*10+goal_gold)/2
-        for num_tmp in num_tmps:
-            num_tmp = abs(num_tmp) + adjust
-            if num_tmp > 5:
-                gold_tmp = 7
-
-            elif num_tmp > 4.3:
-                gold_tmp = 6
-
-            elif num_tmp > 3.7:
-                gold_tmp = 5
-
-            elif num_tmp > 3.5:
-                gold_tmp = 4
-
-            elif num_tmp > 3:
-                gold_tmp = 3
-
-            elif num_tmp > 2.4:
-                gold_tmp = 2
-
-            elif num_tmp > 1.5:
-                gold_tmp = 1
+        num_list = range(0,10000000)
+        adjust = 0
+        for x in range(0,times):
+            num_tmp = random.choice(num_list)
+            if num_tmp == 5000000 or num_tmp == 6000000 or num_tmp == 7000000:
+                gold_tmp = 7#0.9
+            elif num_tmp > 2000000 and num_tmp <= 2000150 + adjust:
+                gold_tmp = 6#1
+            elif num_tmp > 3000000 and num_tmp <= 3001500 + adjust:
+                gold_tmp = 5#1
+            elif num_tmp > 1000000 and num_tmp <= 1003463 + adjust:
+                gold_tmp = 4#1
+            elif num_tmp > 4000000 and num_tmp <= 4022523 + adjust:
+                gold_tmp = 3#1
+            elif num_tmp > 5000000 and num_tmp <= 5120482 + adjust:
+                gold_tmp = 2#2
+            elif num_tmp > 6000000 and num_tmp <= 9000000 + adjust:
+                gold_tmp = 1#3
             else:
                 gold_tmp = 0
             text = cat_text[gold_tmp]
