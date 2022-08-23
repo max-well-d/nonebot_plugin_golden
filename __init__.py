@@ -23,12 +23,15 @@ cat_gold = Config.__cat_gold__
 scheduler = require("nonebot_plugin_apscheduler").scheduler
 
 sign = on_command("仙人微彩", aliases={"金碟签到", "微彩"}, permission=GROUP, priority=5, block=True)
-
-#battle = on_command("幻卡对决", aliases={"比赛", "幻卡比赛"}, permission=GROUP, priority=5, block=True)
+###幻卡对决
+battle = on_command("幻卡决斗", aliases={"幻卡对决", "幻卡比赛"}, permission=GROUP, priority=5, block=True)
+accept_battle = on_command("同意决斗", aliases={"接受决斗"}, permission=GROUP, priority=5, block=True)
+refuse_battle = on_command("拒绝决斗", aliases={"拒绝决斗"}, permission=GROUP, priority=5, block=True)
+battle_chose = on_command("幻卡出牌", aliases={"幻卡梭哈"}, permission=GROUP, priority=5, block=True)
 ###贷款命令
 loan_in = on_command("借贷款", aliases={"借贷"}, permission=GROUP, priority=5, block=True)
-accept = on_command("同意贷款", aliases={"同意借贷"}, permission=GROUP, priority=5, block=True)
-refuse = on_command("拒绝贷款", aliases={"拒绝借贷"}, permission=GROUP, priority=5, block=True)
+accept_loan = on_command("同意贷款", aliases={"同意借贷"}, permission=GROUP, priority=5, block=True)
+refuse_loan = on_command("拒绝贷款", aliases={"拒绝借贷"}, permission=GROUP, priority=5, block=True)
 my_loan = on_command("我的贷款", aliases={"我的债务", "我的借贷"}, permission=GROUP, priority=5, block=True)
 ###仙人彩命令
 cactpot = on_command("仙人彩", aliases={"仙人彩抽奖", "抽奖"}, permission=GROUP, priority=5, block=True)
@@ -47,7 +50,7 @@ beg_plz = on_command("低保", aliases={"领低保"},permission=GROUP, priority=
 vni50 = on_command("转账", aliases={"v你", "转账给"}, permission=GROUP, priority=5, block=True)
 game_help = on_command("金碟帮助", aliases={"/help", "help"}, permission=GROUP, priority=5, block=True)
 ###数据命令
-card_rate = on_command("开卡记录", aliases={"开包记录","幻卡记录"}, permission=GROUP, priority=5, block=True)
+card_rate = on_command("幻卡记录", aliases={"开包记录","我的幻卡"}, permission=GROUP, priority=5, block=True)
 my_gold = on_command("我的金碟币", aliases={"金碟币"}, permission=GROUP, priority=5, block=True)
 record = on_command("生涯数据", aliases={"我的数据","我的记录"}, permission=GROUP, priority=5, block=True)
 golden_rank = on_command("排行榜",aliases={"金碟币排行", "仙人彩排行", "战力排行","幻卡战力排行", "赚币排行", "花币排行","签到排行"},permission=GROUP,priority=5,block=True)
@@ -68,7 +71,6 @@ async def _(event: GroupMessageEvent):
     if gold != -1:
         logger.info(f"USER {event.user_id} | GROUP {event.group_id} 获取 {gold} 金碟币")
 
-
 #%%买卡包-------------
 @get_cards.handle()
 async def _(event: GroupMessageEvent, state: T_State = State(),arg: Message = CommandArg()):
@@ -84,14 +86,12 @@ async def _(event: GroupMessageEvent, state: T_State = State(),arg: Message = Co
                     state["purchase_num"] = purchase_num
 
                     if buy_card_type and purchase_num:
-                        msg, gold = golden_manager.get_cards(event, buy_card_type, purchase_num)
+                        msg= golden_manager.get_cards(event, buy_card_type, purchase_num)
                         await get_cards.finish(msg, at_sender=True)
 
-@get_cards.got("buy_card_type_raw", prompt="要买哪个等级的卡包?1.铜包(100) 2.银包(300) 3.金包(500) 4.白金包(1500)")
+@get_cards.got("buy_card_type_raw", prompt="要买哪个等级的卡包?1.铜包(100) 2.银包(300) 3.金包(500) 4.白金包(1500)(输入'取消'取消操作)")
 async def _(
-    event: GroupMessageEvent, 
     state: T_State, 
-    buy_card_type_raw: Message = Arg(), 
     buy_card_type: str = ArgPlainText("buy_card_type_raw")):
 
     if buy_card_type == "取消":
@@ -103,11 +103,10 @@ async def _(
         await get_cards.reject("卡包只能在1到4中选择!", at_sender=True)
     state["buy_card_type"] = buy_card_type
 
-@get_cards.got("purchase_num_raw", prompt="要买多少包?")
+@get_cards.got("purchase_num_raw", prompt="要买多少包?(输入'取消'取消操作)")
 async def _(
     event: GroupMessageEvent, 
     state: T_State, 
-    purchase_num_raw: Message = Arg(), 
     purchase_num: str = ArgPlainText("purchase_num_raw")):
 
     if purchase_num == "取消":
@@ -120,8 +119,6 @@ async def _(
     state["purchase_num"] = purchase_num
     msg, gold = golden_manager.get_cards(event, int(state["buy_card_type"]), int(state["purchase_num"]))
     await get_cards.send(msg, at_sender=True)
-
-
 
 #%%开卡包-------------
 @open_cards.handle()
@@ -141,11 +138,9 @@ async def _(event: GroupMessageEvent, state: T_State = State(),arg: Message = Co
                         await open_cards.finish(msg, at_sender=True)
 
 
-@open_cards.got("open_card_type_raw", prompt="要开哪个等级的卡包?1.铜包 2.银包 3.金包 4.白金包")
+@open_cards.got("open_card_type_raw", prompt="要开哪个等级的卡包?1~4的数字(输入'取消'取消操作)")
 async def _(
-    event: GroupMessageEvent, 
     state: T_State, 
-    open_card_type_raw: Message = Arg(), 
     open_card_type: str = ArgPlainText("open_card_type_raw")):
 
     if open_card_type == "取消":
@@ -158,11 +153,10 @@ async def _(
     state["open_card_type"] = open_card_type
 
 
-@open_cards.got("open_num_raw", prompt="要开多少包?")
+@open_cards.got("open_num_raw", prompt="要开多少包?(输入'取消'取消操作)")
 async def _(
     event: GroupMessageEvent, 
     state: T_State, 
-    open_num_raw: Message = Arg(), 
     open_num: str = ArgPlainText("open_num_raw")):
 
     if open_num == "取消":
@@ -187,7 +181,13 @@ async def _(event: GroupMessageEvent):
 async def _(event: GroupMessageEvent):
     card = golden_manager.get_user_data(event)["cards_opend"]
     pack = golden_manager.get_user_data(event)["pack_opend"]
-    back_text = f'\n铜包{pack[1]}包\n银包{pack[2]}包\n金包{pack[3]}包\n白金包{pack[4]}包\n'
+    store = golden_manager.get_user_data(event)["pack_store"]
+    mat_pack = "{:<4}{:>10}{:<10}"
+    back_text = (f'\n{mat_pack.format("","已开 |"," 剩余")}\n'
+                 f'{mat_pack.format("铜包",str(pack[1])+" | ",store[1])}\n'+
+                 f'{mat_pack.format("银包",str(pack[2])+" | ",store[2])}\n'+
+                 f'{mat_pack.format("金包",str(pack[3])+" | ",store[3])}\n'+
+                 f'{mat_pack.format("白金",str(pack[4])+" | ",store[4])}\n')
     if card[5] > 0:
         back_text += (f'开出：\n' +
                       f'☆：{card[0]}\n' +
@@ -219,6 +219,8 @@ async def _(event: GroupMessageEvent):
     await record.send(
         f'\n金碟游乐场记录\n'
         f'幻卡战力  ：{user["cards_power"]}\n'
+        f'幻卡胜场  ：{user["win_count"]}\n'
+        f'幻卡败场  ：{user["lose_count"]}\n'
         f'签到天数  ：{user["sign_days"]}\n'
         f'赚取金碟币：{user["make_gold"]}\n'
         f'花费金碟币：{user["lose_gold"]}',
@@ -302,6 +304,8 @@ async def _(event: GroupMessageEvent, state: T_State = State(), arg: Message = C
     at_id = get_message_at(event.json())
     if not at_id:
         await vni50.finish("没有@收款人，请@想要转账的人，可以为复数", at_sender=True)
+    if at_id == str(event.user_id):
+        await vni50.finish("不能给自己转账的啦", at_sender=True)
     raw_cmd = state["_prefix"]["raw_command"]
     nums = arg.extract_plain_text()
     if is_number(nums):
@@ -312,7 +316,7 @@ async def _(event: GroupMessageEvent, state: T_State = State(), arg: Message = C
 
 #%%贷款
 @loan_in.handle()
-async def _(bot: Bot, event: GroupMessageEvent, state: T_State = State(), arg: Message = CommandArg()):
+async def _( event: GroupMessageEvent, state: T_State = State(), arg: Message = CommandArg()):
     debate = golden_manager.get_user_data(event)["loan_in"]
     if len(debate) >= 5:
         await loan_in.finish(f"你已经向5个人借贷了，先把钱还清吧！", at_sender=True)
@@ -335,11 +339,9 @@ async def _(bot: Bot, event: GroupMessageEvent, state: T_State = State(), arg: M
             msg = golden_manager.loan_in(event, nums, state["at"])
             await loan_in.finish(msg)
 
-@loan_in.got("nums", prompt="你要借多少贷款?")
-async def _(bot: Bot, event: GroupMessageEvent, state: T_State, nums_ano: str = ArgPlainText("nums")):
+@loan_in.got("nums", prompt="你要借多少贷款，请直接输入数字？(输入'取消'取消操作)")
+async def _(event: GroupMessageEvent, state: T_State, nums_ano: str = ArgPlainText("nums")):
     nums = nums_ano
-    if nums:
-        nums = nums_ano
     at = state["at"]
     loan_user_gold = state["loan_user_gold"]
     if nums == "取消":
@@ -349,28 +351,62 @@ async def _(bot: Bot, event: GroupMessageEvent, state: T_State, nums_ano: str = 
             await loan_in.reject("做个人吧！", at_sender=True)
         else:
             if int(loan_user_gold) < int(nums):
-                await loan_in.reject("你借太多啦！")
+                await loan_in.reject("你借太多啦！", at_sender=True)
             else:
                 msg = golden_manager.loan_in(event, nums, at)
                 await loan_in.send(msg)
     else:
         await loan_in.reject("请输入数字！", at_sender=True)
 
-@accept.handle()
+@accept_loan.handle()
 async def _(event: GroupMessageEvent):
-    msg = golden_manager.accept(event)
-    await accept.send(msg, at_sender=True)
+    msg = golden_manager.accept_loan(event)
+    await accept_loan.send(msg, at_sender=True)
 
-@refuse.handle()
+@refuse_loan.handle()
 async def _(event: GroupMessageEvent):
-    msg = golden_manager.refuse(event)
-    await refuse.send(msg, at_sender=True)
+    msg = golden_manager.refuse_loan(event)
+    await refuse_loan.send(msg, at_sender=True)
+
+#%%幻卡决斗
+@battle.handle()
+async def _(event: GroupMessageEvent, arg: Message = CommandArg()):
+    nums = arg.extract_plain_text()
+    if nums == '':
+        nums = 50
+    if not is_number(nums):
+        await loan_in.reject("请输入数字！", at_sender=True)
+    at_id = get_message_at(event.json())
+    if not at_id or len(at_id) > 1:
+        await battle.finish("没有at决斗对象或者at了多个决斗对象", at_sender=True)
+    elif at_id[0] == event.user_id:
+        await battle.finish("不能向自己决斗的啦！", at_sender=True)
+    at_id = at_id[0]
+    nums = int(nums)
+    msg = golden_manager.battle_check(event, at_id, nums)
+    await battle.send(msg)
+
+@accept_battle.handle()
+async def _(bot: Bot, event: GroupMessageEvent):
+    msg = golden_manager.accetp_battle(bot, event)
+    await accept_battle.send(msg, at_sender=True)
+
+@refuse_battle.handle()
+async def _(bot: Bot, event: GroupMessageEvent):
+    msg = golden_manager.refuse_battle(event)
+    await refuse_battle.send(msg, at_sender=True)
+
+@battle_chose.handle()
+async def _(event: GroupMessageEvent, state: T_State= State()):
+    cmd = state["_prefix"]["raw_command"]
+    msg = golden_manager.battle_chose(event, cmd)
+    await battle_chose.send(msg, at_sender=True)
 
 #低保
 @beg_plz.handle()
 async def _(event: GroupMessageEvent):
     msg = golden_manager.beg(event)
-    await beg_plz.send(msg, at_sender=True)
+    await beg_plz.send(msg, at_sender=True) 
 
 # 重置每日签到
 @scheduler.scheduled_job(
