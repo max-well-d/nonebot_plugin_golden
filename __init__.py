@@ -1,7 +1,7 @@
 from .data_source import golden_manager
 from .utils import is_number, get_message_at
 from .config import Config
-from nonebot import on_command, require
+from nonebot import on_command, require, get_bot
 from nonebot.adapters.onebot.v11 import (
     Bot,
     GROUP,
@@ -15,6 +15,8 @@ from nonebot.log import logger
 from nonebot.params import Depends, CommandArg, State, Arg, ArgPlainText
 from nonebot.typing import T_State
 from typing import List
+from asyncio import sleep
+from random import randint
 
 __zx_plugin_name__ = "金碟模拟器"
 
@@ -24,10 +26,10 @@ scheduler = require("nonebot_plugin_apscheduler").scheduler
 
 sign = on_command("仙人微彩", aliases={"金碟签到", "微彩"}, permission=GROUP, priority=5, block=True)
 ###幻卡对决
-battle = on_command("幻卡决斗", aliases={"幻卡对决", "幻卡比赛"}, permission=GROUP, priority=5, block=True)
+battle = on_command("水晶争锋", aliases={"推水晶", "水晶比赛"}, permission=GROUP, priority=5, block=True)
 accept_battle = on_command("同意决斗", aliases={"接受决斗"}, permission=GROUP, priority=5, block=True)
 refuse_battle = on_command("拒绝决斗", aliases={"拒绝决斗"}, permission=GROUP, priority=5, block=True)
-battle_chose = on_command("幻卡出牌", aliases={"幻卡梭哈"}, permission=GROUP, priority=5, block=True)
+battle_chose = on_command("稳步推进", aliases={"全力推进"}, permission=GROUP, priority=5, block=True)
 ###贷款命令
 loan_in = on_command("借贷款", aliases={"借贷"}, permission=GROUP, priority=5, block=True)
 accept_loan = on_command("同意贷款", aliases={"同意借贷"}, permission=GROUP, priority=5, block=True)
@@ -372,10 +374,8 @@ async def _(event: GroupMessageEvent):
 @battle.handle()
 async def _(event: GroupMessageEvent, arg: Message = CommandArg()):
     nums = arg.extract_plain_text()
-    if nums == '':
-        nums = 50
     if not is_number(nums):
-        await loan_in.reject("请输入数字！", at_sender=True)
+        nums = 50
     at_id = get_message_at(event.json())
     if not at_id or len(at_id) > 1:
         await battle.finish("没有at决斗对象或者at了多个决斗对象", at_sender=True)
@@ -415,5 +415,10 @@ async def _(event: GroupMessageEvent):
     minute=0,
 )
 async def _():
-    golden_manager.reset_gold()
-    logger.info("每日仙人微彩次数重置成功...")
+    bot = get_bot()
+    msg = golden_manager.daily_refresh()
+    if len(msg) > 0:
+        for group_id in msg:
+            await sleep(randint(5,15)/10)
+            await bot.send_group_msg(group_id=group_id, message=msg[group_id])
+    logger.info("每日重置成功...")

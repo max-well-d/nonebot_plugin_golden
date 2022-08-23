@@ -30,6 +30,7 @@ pack_name = godden_config.pack_name
 pack_type = godden_config.pack_type
 sign_gold = godden_config.sign_gold
 user_data_type = godden_config.user_data_type
+power_rank_price = godden_config.power_rank_price
 
 async def rank(player_data: dict, group_id: int, type_: str) -> str:
     """
@@ -103,6 +104,9 @@ class GoldenManager:
             logger.info(f'添加{data_change}条缺失数据')
 
     def change_gold_self(self, group_id: str, user_id: str, nums: int):
+        """
+        通用金碟币增减函数
+        """
         group_id = str(group_id)
         user_id = str(user_id)
         player_datas = self._player_data[group_id]
@@ -301,7 +305,7 @@ class GoldenManager:
         if group_id in self._current_player["battles"]:
             del self._current_player["battles"][group_id]
 
-    async def battle_stop_timer(self, bot: Bot, group_id):
+    async def battle_stop_timer(self, bot: Bot, event: GroupMessageEvent, group_id):
         try:
             scheduler.remove_job(self._current_player["battles"][group_id]["scheduler_id"] + '_play')
             logger.info(f"幻卡对决已超时")
@@ -309,7 +313,7 @@ class GoldenManager:
             logger.info(f'幻卡对决定时删除错误')
         if group_id in self._current_player["battles"]:
             del self._current_player["battles"][group_id]
-        await bot.send(MessageSegment.text(f'对决结束，没有分出胜负！'))
+        await bot.send(event ,message= f'对决结束，没有分出胜负！')
         
     def battle_check(self, event: GroupMessageEvent, at_id: int, nums: int=50):
         self._init_player_data(event)
@@ -355,7 +359,7 @@ class GoldenManager:
             str(event.user_id):{"power":a_power, "id":event.user_id, "nickname":a_nickname, "side": 0},
             str(at_id):{"power":b_power, "id":at_id, "nickname":b_nickname, "side": 1},
             "scheduler_id": str(event.group_id),
-            "turn_id":"",
+            "turn_id":str(at_id),
             "playground": 0b0001000,
             "nums": nums,
         }
@@ -366,31 +370,41 @@ class GoldenManager:
                             trigger='interval',
                             seconds=60,
                             id=self._current_player["battles"][str(event.group_id)]["scheduler_id"]+ '_appl')
-            logger.info(f'{self._current_player["battles"][str(event.group_id)]["scheduler_id"]}任务生成')
+            logger.info(f'{self._current_player["battles"][str(event.group_id)]["scheduler_id"]}_appl任务生成')
         except:
             logger.info(f'定时任务生成失败！')
 
         msg = (MessageSegment.at(at_id)
-               + MessageSegment.text(f'\n{a_nickname}向您申请幻卡决斗'
+               + MessageSegment.text(f'\n{a_nickname}向您申请水晶争锋决斗\n'
+                                     f'您的战力为:{b_power},对手战力为:{a_power}\n'
                                      f'请在60秒内输入“同意决斗”，或“拒绝决斗”，超时将自动帮您拒绝。'))
         return msg
 
     def accetp_battle(self, bot: Bot, event:GroupMessageEvent) -> str:
+        match self.check_battle(event):
+            case 1:
+                return f'您不在对决申请之中'
+            case 2:
+                return f'当前没有对决正在被申请'
+        
         battle_info = self._current_player["battles"][str(event.group_id)]
+        if str(event.user_id) != battle_info["turn_id"]:
+            return f'对决发起人还想帮对手同意？'
         try:
             scheduler.remove_job(battle_info["scheduler_id"]+ '_appl')
-            logger.info(f"幻卡对决申请已结束")
+            logger.info(f"水晶争锋申请已结束")
         except:
-            logger.info(f'幻卡申请定时删除错误')
+            logger.info(f'水晶争锋申请定时删除错误')
         try:
             scheduler.add_job(func=self.battle_stop_timer,
-                            args=[bot, str(event.group_id)],
+                            args=[bot, event, str(event.group_id)],
                             trigger='interval',
                             seconds=300,
                             id=battle_info["scheduler_id"] + '_play')
             logger.info(f'{battle_info["scheduler_id"]}任务生成')
         except:
             logger.info(f"定时任务生成失败！")
+            return f'定时器生成失败'
         name = []
         abid = []
         for ab in battle_info:
@@ -400,7 +414,7 @@ class GoldenManager:
         start_player = random.choice([0,1])
         
         battle_info["turn_id"] = abid[start_player]
-        msg = f'{name[0]}与{name[1]}的对决开始，限时5分钟，由{name[start_player]}开始！\n初始化棋盘\n0001000'
+        msg = f'{name[0]}与{name[1]}的对决开始，\n限时5分钟，由{name[start_player]}开始！\n初始化水晶位置\n0001000'
         return msg
 
     def check_battle(self, event: GroupMessageEvent) -> int:
@@ -416,7 +430,7 @@ class GoldenManager:
     def refuse_battle(self, event: GroupMessageEvent) -> str:
         match self.check_battle(event):
             case 0:
-                scheduler.remove_job(self._current_player["battles"][str(event.group_id)]["scheduler_id"]+ '_appl')
+                self.battle_handle_timer(str(event.group_id))
                 return f'已成功拒绝'
             case 1:
                 return f'您不在对决申请之中'
@@ -435,16 +449,16 @@ class GoldenManager:
         power = battle_info[str(event.user_id)]["power"]
         abpower = []
         now_pg = battle_info["playground"]
-        if chose == "幻卡出牌":
+        if chose == "稳步推进":
             chose_step = 1
-        elif chose == "幻卡梭哈":
+        elif chose == "全力推进":
             chose_step = 2
         for ab in battle_info:
             if isinstance(battle_info[ab],dict):
                 abpower.append(battle_info[ab]["power"])
                 if battle_info[ab]["id"] != event.user_id:
                     pos_id = battle_info[ab]["id"]
-        rate = power/(chose_step*chose_step)/(abpower[0]+abpower[1])
+        rate = power/(chose_step*(random.random()+1))/(abpower[0]+abpower[1])
         ans = random.random()
         if ans < rate:
             msg = f"\n成功，向前推进{chose_step}格！\n"
@@ -461,7 +475,7 @@ class GoldenManager:
                 else:
                     msg += str(bin(now_pg))[2:].zfill(7)
         else:
-            msg = f"\n失败了，没有推进\n{self.battle_win(event, pos_id)}"
+            msg = f"\n失败了，没有推进\n{str(bin(now_pg))[2:].zfill(7)}"
         battle_info["playground"] = now_pg
         battle_info["turn_id"] = pos_id
         return msg
@@ -671,14 +685,32 @@ class GoldenManager:
         else:
             return "Null"
 
-    def reset_gold(self):
+    def daily_refresh(self):
         """
-        重置签到
+        重置微彩，低保，每日幻卡奖励
         """
+        msg = {}
         for group in self._player_data.keys():
             for user_id in self._player_data[group].keys():
                 self._player_data[group][user_id]["is_sign"] = False
                 self._player_data[group][user_id]["beg_times"] = 0
+            all_user = list(self._player_data[group].keys())
+            all_user_data = [self._player_data[group][x]["cards_power"] for x in all_user]
+            msg[group] = f'每日幻卡战力排行奖励\n'
+            if all_user:
+                for x in range(len(all_user) if len(all_user) < 3 else 3):
+                    _max = max(all_user_data)
+                    if x == 0 and _max == 0:
+                        break
+                    _max_id = all_user[all_user_data.index(_max)]
+                    name = self._player_data[group][_max_id]["nickname"]
+                    msg[group] += f"{name}获得：{power_rank_price[2-x]}金碟币\n"
+                    self.change_gold_self(group, _max_id, power_rank_price[2-x])
+                    all_user_data.remove(_max)
+                    all_user.remove(_max_id)
+            msg[group] = msg[group][:-1]
         self.save()
+        return msg
+        
 
 golden_manager = GoldenManager()
