@@ -1,13 +1,14 @@
-from email import message
-from tokenize import group
-from turtle import pos
-from nonebot.adapters.onebot.v11 import GroupMessageEvent, MessageSegment, Bot
+from nonebot.adapters.onebot.v11 import GroupMessageEvent, MessageSegment, Bot, Message
 from nonebot.log import logger
 from pathlib import Path
 from typing import Tuple, Union, Dict
 import nonebot
 import numpy as np
 import os
+import re
+import httpx
+import asyncio
+import time
 import random
 from .config import Config
 try:
@@ -18,19 +19,20 @@ except ModuleNotFoundError:
 scheduler = nonebot.require("nonebot_plugin_apscheduler").scheduler
 
 global_config = nonebot.get_driver().config
-godden_config = Config.parse_obj(global_config.dict())
-golden_confg = Config.parse_obj(nonebot.get_driver().config.dict())
-cards_power = godden_config.cards_power
-cat_gold = godden_config.cat_gold
-cat_text = godden_config.cat_text
-goal_gold = godden_config.goal_gold
-golden_path = godden_config.golden_path
-max_beg_times = godden_config.max_beg_times
-pack_name = godden_config.pack_name
-pack_type = godden_config.pack_type
-sign_gold = godden_config.sign_gold
-user_data_type = godden_config.user_data_type
-power_rank_price = godden_config.power_rank_price
+goldden_config = Config.parse_obj(global_config.dict())
+cards_power = goldden_config.cards_power
+cat_gold = goldden_config.cat_gold
+cat_text = goldden_config.cat_text
+goal_gold = goldden_config.goal_gold
+golden_path = goldden_config.golden_path
+max_beg_times = goldden_config.max_beg_times
+pack_name = goldden_config.pack_name
+pack_type = goldden_config.pack_type
+sign_gold = goldden_config.sign_gold
+user_data_type = goldden_config.user_data_type
+power_rank_price = goldden_config.power_rank_price
+main_dict = goldden_config.main_dict
+comments = goldden_config.comments
 
 async def rank(player_data: dict, group_id: int, type_: str) -> str:
     """
@@ -243,13 +245,12 @@ class GoldenManager:
         allcost = cost * nums
         gold = self._player_data[str(event.group_id)][str(event.user_id)]["gold"]
         if gold < allcost:
-            return ("金碟币不足，无法购买",
-                    -1,)
+            return "金碟币不足，无法购买"
         else:
             self.change_gold_self(event.group_id, event.user_id, allcost*-1)
             self._player_data[str(event.group_id)][str(event.user_id)]["pack_store"][buy_pack_type] += nums
             self.save()
-            return (f"购买成功,消耗{allcost}金碟币,剩余{gold-allcost}金碟币")
+            return f"购买成功,消耗{allcost}金碟币,剩余{gold-allcost}金碟币"
 
     def open_cards(self, event: GroupMessageEvent, open_pack_type: int, nums: int) -> str:
         """
@@ -297,6 +298,9 @@ class GoldenManager:
         return (backtext)
     
     def battle_handle_timer(self, group_id):
+        """
+        幻卡对决申请定时
+        """
         try:
             scheduler.remove_job(self._current_player["battles"][group_id]["scheduler_id"] + '_appl')
             logger.info(f"幻卡对决申请已超时")
@@ -306,6 +310,9 @@ class GoldenManager:
             del self._current_player["battles"][group_id]
 
     async def battle_stop_timer(self, bot: Bot, event: GroupMessageEvent, group_id):
+        """
+        幻卡对决定时
+        """
         try:
             scheduler.remove_job(self._current_player["battles"][group_id]["scheduler_id"] + '_play')
             logger.info(f"幻卡对决已超时")
@@ -316,6 +323,9 @@ class GoldenManager:
         await bot.send(event ,message= f'对决结束，没有分出胜负！')
         
     def battle_check(self, event: GroupMessageEvent, at_id: int, nums: int=50):
+        """
+        检查对战双方数据
+        """
         self._init_player_data(event)
         if not str(at_id) in self._player_data[str(event.group_id)]:
             return f'该用户还没有签过到！'
@@ -418,6 +428,9 @@ class GoldenManager:
         return msg
 
     def check_battle(self, event: GroupMessageEvent) -> int:
+        """
+        检查触发指令用户权限
+        """
         battles_info = self._current_player["battles"]
         if str(event.group_id) in battles_info:
             if str(event.user_id) in battles_info[str(event.group_id)]:
@@ -438,6 +451,9 @@ class GoldenManager:
                 return f'当前没有对决正在被申请'
 
     def battle_chose(self, event: GroupMessageEvent, chose) -> str:
+        """
+        战斗进行和结算
+        """
         match self.check_battle(event):
             case 1:
                 return f'您不在对决之中'
@@ -458,7 +474,7 @@ class GoldenManager:
                 abpower.append(battle_info[ab]["power"])
                 if battle_info[ab]["id"] != event.user_id:
                     pos_id = battle_info[ab]["id"]
-        rate = power/(chose_step*(random.random()+1))/(abpower[0]+abpower[1])
+        rate = power/(chose_step*(random.random()+0.5))/(abpower[0]+abpower[1])
         ans = random.random()
         if ans < rate:
             msg = f"\n成功，向前推进{chose_step}格！\n"
@@ -641,7 +657,6 @@ class GoldenManager:
         return msg
 
     def accept_loan(self, event: GroupMessageEvent):
-
         if str(event.user_id) in self._current_player[str(event.group_id)]:
             loan_in_id = self._current_player[str(event.group_id)][str(event.user_id)]["loan_in"]
             nums = int(self._current_player[str(event.group_id)][str(event.user_id)]["nums"])
@@ -670,6 +685,64 @@ class GoldenManager:
             self.del_loan_timer(str(event.group_id), str(event.user_id))
             return f'已成功拒绝！'
         return f'您没有被申请借贷！'
+
+    async def house_api(self, server_num: int, size: int, area: int, id: int, args: list=[]) -> str:
+        api = "https://house.ffxiv.cyou/api/sales?"
+        msg = []
+        now_time = str(int(time.time()))
+        async with httpx.AsyncClient() as client:
+            r = await client.get(url= f"{api}server={server_num}&ts={now_time}")
+            r = json.load(r)
+            for all_h in range(0,len(r)):
+                if size == -1 or r[all_h]["Size"] == size:
+                    if id == -1 or r[all_h]["ID"] == id:
+                        if area == -1 or r[all_h]["Area"] == area:
+                            msg.append(f'{args[0]}{args[1]} {main_dict["area_read"][r[all_h]["Area"]]} {r[all_h]["Slot"]+1}区{r[all_h]["ID"]}号{main_dict["size_read"][r[all_h]["Size"]]}型\n{main_dict["RegionType_read"][r[all_h]["RegionType"]]}房 售价:{r[all_h]["Price"]}\n评价：{comments[r[all_h]["Area"]][r[all_h]["ID"]-1]}\n')
+        return msg
+
+    async def house_find(self, bot:Bot, event: GroupMessageEvent, args: list):
+        size = -1
+        id = -1
+        server_num = -1
+        area = -1
+        if len(args) >= 2:
+            if args[0] in list(main_dict["server"]):
+                if args[1] in list(main_dict["server"][args[0]]):
+                    server_num = main_dict["server"][args[0]][args[1]]
+        if server_num == -1:
+            return 0
+        
+        if len(args) >=3:
+            if args[2] in list(main_dict["size_requre"]):
+                size = main_dict["size_requre"][args[2]]
+            elif args[2] in list(main_dict["area_requre"]):
+                area = main_dict["area_requre"][args[2]]
+                
+        if len(args) >=4:
+            pattern = re.compile('[0-9]+') 
+            num_arg = pattern.search(args[3])
+            if args[3] in list(main_dict["size_requre"]):
+                size = main_dict["size_requre"][args[3]]
+            elif num_arg != None and int(num_arg[0]) > 0 and int(num_arg[0]) <= 60:
+                    id = int(num_arg[0])
+
+        msg = await self.house_api(server_num, size, area, id, args)
+        def to_json(msg: Message):
+            return {"type": "node", "data": {"name": "小小肥", "uin": bot.self_id, "content": msg}}
+
+        def divide(ls,each):
+            lens = len(ls)
+            now = 0
+            dvdlist = []
+            while now+each<lens:
+                dvdlist.append(ls[now:now+each])
+                now+=each
+            dvdlist.append(ls[now:])
+            return dvdlist
+
+        messages = divide([to_json(msgs) for msgs in msg],100)
+        for message in messages:
+            await bot.call_api("send_group_forward_msg", group_id=event.group_id, messages=message)
 
     def get_user_data(self, event: GroupMessageEvent, search_Uid: str="") -> Dict[str, Union[str, int]]:
         """
@@ -711,6 +784,5 @@ class GoldenManager:
             msg[group] = msg[group][:-1]
         self.save()
         return msg
-        
 
 golden_manager = GoldenManager()

@@ -1,3 +1,4 @@
+from email import message
 from .data_source import golden_manager
 from .utils import is_number, get_message_at
 from .config import Config
@@ -48,6 +49,7 @@ open_cards = on_command("开包", aliases={"开幻卡","开幻卡包"}, permissi
 reload_data = on_command("_reload_data", permission=SUPERUSER, priority=5, block=True)
 change_gold = on_command("_change_gold", permission=SUPERUSER, priority=5, block=True)
 ###杂项命令
+house_find = on_command("查房",aliases={"买房"},permission=GROUP, priority=5, block=True)
 beg_plz = on_command("低保", aliases={"领低保"},permission=GROUP, priority=5, block=True) 
 vni50 = on_command("转账", aliases={"v你", "转账给"}, permission=GROUP, priority=5, block=True)
 game_help = on_command("金碟帮助", aliases={"/help", "help"}, permission=GROUP, priority=5, block=True)
@@ -88,7 +90,7 @@ async def _(event: GroupMessageEvent, state: T_State = State(),arg: Message = Co
                     state["purchase_num"] = purchase_num
 
                     if buy_card_type and purchase_num:
-                        msg= golden_manager.get_cards(event, buy_card_type, purchase_num)
+                        msg = golden_manager.get_cards(event, buy_card_type, purchase_num)
                         await get_cards.finish(msg, at_sender=True)
 
 @get_cards.got("buy_card_type_raw", prompt="要买哪个等级的卡包?1.铜包(100) 2.银包(300) 3.金包(500) 4.白金包(1500)(输入'取消'取消操作)")
@@ -119,7 +121,7 @@ async def _(
     if purchase_num < 1:
         await get_cards.reject("你还想卖卡包给我?想得美!", at_sender=True)
     state["purchase_num"] = purchase_num
-    msg, gold = golden_manager.get_cards(event, int(state["buy_card_type"]), int(state["purchase_num"]))
+    msg = golden_manager.get_cards(event, int(state["buy_card_type"]), int(state["purchase_num"]))
     await get_cards.send(msg, at_sender=True)
 
 #%%开卡包-------------
@@ -407,6 +409,17 @@ async def _(event: GroupMessageEvent, state: T_State= State()):
 async def _(event: GroupMessageEvent):
     msg = golden_manager.beg(event)
     await beg_plz.send(msg, at_sender=True) 
+
+#查房[大区][服务器][房型]
+@house_find.handle()
+async def _(bot:Bot, event: GroupMessageEvent, arg: Message = CommandArg()):
+    args = arg.extract_plain_text().strip()
+    if args:
+        args = args.split()
+    msg = await golden_manager.house_find(bot, event, args)
+    if msg != 0:
+        if msg == []:
+            await house_find.finish("没有空房")
 
 # 重置每日签到
 @scheduler.scheduled_job(
