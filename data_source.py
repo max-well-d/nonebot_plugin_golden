@@ -711,20 +711,29 @@ class GoldenManager:
                     server_num = main_dict["server"][args[0]][args[1]]
         if server_num == -1:
             return 0
+        pattern = re.compile('[0-9]+') 
         
         if len(args) >=3:
+            num_arg = pattern.search(args[2])
             if args[2] in list(main_dict["size_requre"]):
                 size = main_dict["size_requre"][args[2]]
             elif args[2] in list(main_dict["area_requre"]):
                 area = main_dict["area_requre"][args[2]]
-                
+            elif num_arg != None and int(num_arg[0]) > 0 and int(num_arg[0]) <= 60:
+                id = int(num_arg[0])
+            else :
+                return 0
+        
         if len(args) >=4:
-            pattern = re.compile('[0-9]+') 
             num_arg = pattern.search(args[3])
             if args[3] in list(main_dict["size_requre"]):
                 size = main_dict["size_requre"][args[3]]
+            elif args[3] in list(main_dict["area_requre"]):
+                area = main_dict["area_requre"][args[3]]
             elif num_arg != None and int(num_arg[0]) > 0 and int(num_arg[0]) <= 60:
-                    id = int(num_arg[0])
+                id = int(num_arg[0])
+            else :
+                return 0
 
         msg = await self.house_api(server_num, size, area, id, args)
         def to_json(msg: Message):
@@ -739,7 +748,8 @@ class GoldenManager:
                 now+=each
             dvdlist.append(ls[now:])
             return dvdlist
-
+        if len(msg) == 0:
+            return []
         messages = divide([to_json(msgs) for msgs in msg],100)
         for message in messages:
             await bot.call_api("send_group_forward_msg", group_id=event.group_id, messages=message)
