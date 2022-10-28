@@ -1,4 +1,3 @@
-from email import message
 from .data_source import golden_manager
 from .utils import is_number, get_message_at
 from .config import Config

@@ -697,7 +697,10 @@ class GoldenManager:
                 if size == -1 or r[all_h]["Size"] == size:
                     if id == -1 or r[all_h]["ID"] == id:
                         if area == -1 or r[all_h]["Area"] == area:
-                            msg.append(f'{args[0]}{args[1]} {main_dict["area_read"][r[all_h]["Area"]]} {r[all_h]["Slot"]+1}区{r[all_h]["ID"]}号{main_dict["size_read"][r[all_h]["Size"]]}型\n{main_dict["RegionType_read"][r[all_h]["RegionType"]]}房 售价:{r[all_h]["Price"]}\n评价：{comments[r[all_h]["Area"]][r[all_h]["ID"]-1]}\n')
+                            timex = int(r[all_h]["LastSeen"])
+                            timeArray = time.localtime(timex)
+                            LastSeen = time.strftime("%Y年%m月%d日 %H:%M:%S", timeArray)
+                            msg.append(f'{args[0]}{args[1]} {main_dict["area_read"][r[all_h]["Area"]]} {r[all_h]["Slot"]+1}区{r[all_h]["ID"]}号{main_dict["size_read"][r[all_h]["Size"]]}型\n{main_dict["RegionType_read"][r[all_h]["RegionType"]]}房 售价:{r[all_h]["Price"]}\n评价：{comments[r[all_h]["Area"]][r[all_h]["ID"]-1]}\n最后更新时间：{LastSeen}')
         return msg
 
     async def house_find(self, bot:Bot, event: GroupMessageEvent, args: list):
